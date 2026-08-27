@@ -1,55 +1,41 @@
-# schematic
+# schematic-example
 
-A boilerplate repository for a Minecraft **1.20.1 / Forge** modpack, managed with
-[packwiz](https://packwiz.infra.link). Use it as a GitHub template (or clone it), swap
-in your own mods, and you have a modpack project that builds and validates itself on
-every push, and can optionally cut releases and deploy to a server too.
+The living example consumer of [brooswit-factory/schematic](https://github.com/brooswit-factory/schematic),
+the packwiz-based Minecraft **1.20.1 / Forge** modpack template. It holds a real,
+buildable pack — not a fork of the template's docs — so it doubles as the reference
+for what a consumer actually has to change.
 
-Out of the box the pack contains the [Create](https://modrinth.com/mod/create) mod and
-nothing else — it is a starting point, not a curated pack.
+This repo was created with the **two-remotes recipe**, not the "Use this template"
+button, precisely so it shares git history with the template:
+
+```sh
+gh repo create brooswit-factory/schematic-example --public \
+  --description "Example consumer of the schematic modpack template"
+git clone https://github.com/brooswit-factory/schematic.git schematic-example
+cd schematic-example
+git remote rename origin template
+git remote add origin https://github.com/brooswit-factory/schematic-example.git
+git push -u origin main
+```
+
+`template` is the remote pointing at `brooswit-factory/schematic`. A fresh clone of
+*this* repo won't have it — add it back first:
+
+```sh
+git remote add template https://github.com/brooswit-factory/schematic.git
+```
+
+To pull in template updates:
+
+```sh
+git fetch template && git merge template/main
+```
 
 | | |
 |---|---|
 | Minecraft | 1.20.1 |
 | Loader | Forge 47.4.10 |
 | Mods | Create (`mc1.20.1-6.0.8`) |
-
-## Quick start
-
-1. Click **Use this template** above (or clone the repo).
-2. Work through the [rename checklist](#rename-checklist) below.
-3. Set whichever [secrets & variables](#secrets--variables) you need — or none, and
-   skip straight to step 4.
-4. Cut a [release](#releasing) once you're ready to publish a build.
-
-## Rename checklist
-
-Every place the name `schematic` (or the `brooswit-factory` author) appears. Verify
-with `grep -ri schematic .` — besides this list it will also match `index.toml`
-(which `make refresh` regenerates for you) and the `uses:
-brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1` line in each
-of `ci.yml`, `release.yml`, and `server-update.yml`. **Leave those `uses:` lines
-alone** — they point at this project's upstream reusable workflows, not at your
-own pack, and renaming them will break all three of your workflows.
-
-| File | What to change |
-|---|---|
-| `pack.toml` | `name = "schematic"` and `author = "brooswit-factory"` |
-| `Makefile` | the header comment on line 1 |
-| `README.md` | the `# schematic` title, and the `build/schematic-<version>.mrpack` mentions |
-| `server/README.md` | the `schematic` modpack references |
-| `server/start.sh` | the header comment |
-| `LICENSE` | the copyright holder |
-
-The artifact name (`<name>-<version>-mrpack`) and the Modrinth publish target are
-both derived from `pack.toml` automatically — nothing to rename in the workflows
-themselves.
-
-Plus, if you use Modrinth: the project id you set in the `MODRINTH_PROJECT_ID`
-variable.
-
-After editing `pack.toml`, run `make refresh` and commit the result — `index.toml`
-needs to match, and CI fails if it doesn't.
 
 ## Working on the pack
 
@@ -69,7 +55,7 @@ allows, so URL-sourced mods may not be exportable.
 ```sh
 make check     # fails if the committed index.toml is stale
 make refresh   # rewrite index.toml after changing files by hand
-make build     # -> build/schematic-<version>.mrpack
+make build     # -> build/schematic-example-<version>.mrpack
 make clean     # remove build/ and bin/
 ```
 
@@ -111,7 +97,7 @@ pack, and uploads the resulting `.mrpack` as a workflow artifact.
 1. Create a GitHub Release with a tag of the form `vX.Y.Z` (e.g. `v0.2.0`).
 2. On publish, the workflow:
    - sets the pack version from the tag (in-workflow only — nothing is committed back),
-   - builds `build/schematic-<version>.mrpack` with the same `make` targets used locally
+   - builds `build/schematic-example-<version>.mrpack` with the same `make` targets used locally
      and in CI,
    - attaches the `.mrpack` to the GitHub Release as a download,
    - publishes the same file to Modrinth, if Modrinth is configured (see below).
@@ -142,11 +128,12 @@ you opt in by adding the secrets/variables below whenever you're ready.
 ## Reusable workflows
 
 `ci.yml`, `release.yml`, and `server-update.yml` are thin stubs: each keeps only
-its trigger (`on:`) and any `permissions:` it needs, and calls this repo's
+its trigger (`on:`) and any `permissions:` it needs, and calls the template's
 actual logic via `uses: brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1`.
-`v1` is a moving tag kept pointed at `main`, so pinning a consumer's stub to
-`@v1` picks up fixes to the reusable workflows automatically. Copy a stub
-as-is into a consumer repo; the reusable workflow it calls stays here.
+`v1` is a moving tag kept pointed at the template's `main`, so pinning a consumer's
+stub to `@v1` picks up fixes to the reusable workflows automatically. The reusable
+workflows themselves live only in [brooswit-factory/schematic](https://github.com/brooswit-factory/schematic),
+not in this repo.
 
 ## Secrets & variables
 
@@ -165,14 +152,3 @@ build and attach the `.mrpack`, and every workflow stays green.
 | `RCON_PORT` | variable | `server-update.yml` | RCON port (default `25575`) |
 | `RCON_PASSWORD` | secret | `server-update.yml` | RCON password |
 | `RCON_RESTART_COMMAND` | variable | `server-update.yml` | Command sent after the announce (default `stop`; assumes your host auto-restarts) |
-
-## Removing a path you don't need
-
-- No Modrinth publishing or releases? Delete `.github/workflows/release.yml`, the
-  "Releasing" section above, its row in the [rename checklist](#rename-checklist), and
-  the `MODRINTH_TOKEN` / `MODRINTH_PROJECT_ID` rows in the
-  [secrets & variables](#secrets--variables) table.
-- No server to keep in sync? Delete `.github/workflows/server-update.yml`, the
-  `server/` directory (`server/README.md` and `server/start.sh` both only make sense
-  alongside it), and the "Updating a server" section and its rows in the
-  [secrets & variables](#secrets--variables) table above.
