@@ -25,17 +25,77 @@ git push -u origin main
 git remote add template https://github.com/brooswit-factory/schematic.git
 ```
 
-To pull in template updates:
-
-```sh
-git fetch template && git merge template/main
-```
-
 | | |
 |---|---|
 | Minecraft | 1.20.1 |
 | Loader | Forge 47.4.10 |
 | Mods | Create (`mc1.20.1-6.0.8`) |
+
+## Updating from the template
+
+### Pulling template changes
+
+This repo keeps evolving — Makefile fixes, `server/` tooling, README clarifications,
+improvements to the reusable workflows. Pull those into your own pack with:
+
+```sh
+git fetch template
+git merge template/main                                  # expect conflicts
+git checkout ORIG_HEAD -- pack.toml index.toml mods      # your pack content wins, conflicted or not
+git checkout --theirs -- <other conflicted files you have not customised>
+make refresh
+git add -A
+git commit
+```
+
+`ORIG_HEAD` is your branch tip as it was immediately before the merge — checking out
+`pack.toml`, `index.toml`, and `mods/` from it restores **your own content** there no
+matter what happened during the merge.
+
+That last point matters: git only reports a conflict on a file **both sides changed**.
+If the template deletes or changes a file you never touched — most importantly a mod
+file in `mods/`, or `index.toml` — there's no conflict, and the merge silently applies
+the template's version, which for a deleted mod means it's just gone with nothing to
+resolve. That's the intended behaviour for tooling files (`Makefile`, `server/`,
+workflow stubs) that should track the template automatically, but it's exactly why the
+`git checkout ORIG_HEAD -- pack.toml index.toml mods` step above is unconditional
+rather than only for conflicted paths — it protects your pack content whether or not git
+flagged a conflict on it.
+
+For the `--theirs` line, "other conflicted files you have not customised" typically
+means `Makefile`, `server/README.md`, and `server/start.sh` — take the template's
+version of these unless you've made local edits worth preserving. `README.md` is the
+one exception worth calling out: if, like this repo, yours describes your own pack
+rather than just the template's generic guide, reconcile it by hand instead of taking
+`--theirs` wholesale — keep your pack-specific text and fold in template improvements
+where they still apply. If you previously deleted `.github/workflows/tag-v1.yml`
+locally, you'll see it as a delete/modify conflict instead of a clean merge; per
+[Template-only workflow](#template-only-workflow) below, you don't need to delete it in
+the first place, so the simplest fix is to keep the template's version
+(`git checkout --theirs -- .github/workflows/tag-v1.yml`) rather than re-deleting it.
+
+### The pinned workflow stubs
+
+`ci.yml`, `release.yml`, and `server-update.yml` are thin stubs: each keeps only its
+trigger (`on:`) and any `permissions:` it needs, and calls the template's actual logic
+via `uses: brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1`. `v1`
+is a moving tag kept pointed at the template's `main`, so pinning a consumer's stub to
+`@v1` picks up fixes to the reusable workflows automatically, with zero merge effort.
+The reusable workflows themselves live only in
+[brooswit-factory/schematic](https://github.com/brooswit-factory/schematic), not in
+this repo.
+
+`v1` promises backwards-compatible inputs, secrets, and variable names; anything that
+would break your workflow ships as a `v2` instead. If you'd rather not receive moving
+updates, pin a specific tag or commit SHA in place of `@v1` in your stub's `uses:`
+line.
+
+## Template-only workflow
+
+`.github/workflows/tag-v1.yml` keeps the `v1` tag on **brooswit-factory/schematic**
+pointed at its own `main`. It is guarded by a `github.repository` check, so it is inert
+here — the job is skipped entirely, and it creates no tag in this repo. There's no need
+to delete it; a `git merge template/main` would just bring it back anyway.
 
 ## Working on the pack
 
@@ -45,7 +105,8 @@ packwiz remove <name>           # e.g. packwiz remove jei
 ```
 
 Both commands update `index.toml` for you. Commit the resulting `mods/<name>.pw.toml`
-along with the changed `index.toml` and `pack.toml` — **CI fails if the index does not
+along with the changed `index.toml` and `pack.toml` (`packwiz refresh` writes the new
+index hash into `pack.toml`'s `[index]` block) — **CI fails if the index does not
 match what is on disk.**
 
 packwiz also has `packwiz curseforge add` and `packwiz url add` if a mod is not on
@@ -73,12 +134,16 @@ make tools     # installs the pinned packwiz into ./bin (needs Go)
 ### What is in the repo
 
 ```
-pack.toml               pack metadata — name, version, Minecraft and Forge versions
-index.toml              generated file list with hashes; do not edit by hand
-mods/*.pw.toml          one file per mod, pinning a version and its hash
-.packwizignore          repo files (docs, CI, Makefile) kept out of the pack
-.github/workflows/ci.yml  validates the index and builds the .mrpack on every push
-Makefile                the build entry point, shared by humans and CI
+pack.toml                           pack metadata — name, version, Minecraft and Forge versions
+index.toml                          generated file list with hashes; do not edit by hand
+mods/*.pw.toml                      one file per mod, pinning a version and its hash
+.packwizignore                      repo files (docs, CI, Makefile) kept out of the pack
+.github/workflows/ci.yml            validates the index and builds the .mrpack on every push
+.github/workflows/release.yml       cuts a release (see Releasing below)
+.github/workflows/server-update.yml keeps a game server in sync (see server/README.md)
+.github/workflows/tag-v1.yml        template-only (see Template-only workflow above)
+Makefile                            the build entry point, shared by humans and CI
+server/                             sample scripts for running/updating a Forge server for this pack
 ```
 
 No jars are committed — `.pw.toml` files reference downloads by URL and hash, and
@@ -100,7 +165,8 @@ pack, and uploads the resulting `.mrpack` as a workflow artifact.
    - builds `build/schematic-example-<version>.mrpack` with the same `make` targets used locally
      and in CI,
    - attaches the `.mrpack` to the GitHub Release as a download,
-   - publishes the same file to Modrinth, if Modrinth is configured (see below).
+   - publishes the same file to Modrinth, if Modrinth is configured (see
+     [Secrets & variables](#secrets--variables) below).
 
 You can also dry-run the whole build-and-package path without creating a Release, via
 `workflow_dispatch`:
@@ -122,25 +188,17 @@ over FTP, then announces the update and restarts the server over RCON — see
 [`server/README.md`](server/README.md) for how to set up the server side of this.
 
 Both halves are independent and **skip cleanly** (the workflow still finishes green)
-when their secrets aren't configured, so this works out of the box on a fresh fork —
+when their secrets aren't configured, so this works out of the box on a fresh clone —
 you opt in by adding the secrets/variables below whenever you're ready.
-
-## Reusable workflows
-
-`ci.yml`, `release.yml`, and `server-update.yml` are thin stubs: each keeps only
-its trigger (`on:`) and any `permissions:` it needs, and calls the template's
-actual logic via `uses: brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1`.
-`v1` is a moving tag kept pointed at the template's `main`, so pinning a consumer's
-stub to `@v1` picks up fixes to the reusable workflows automatically. The reusable
-workflows themselves live only in [brooswit-factory/schematic](https://github.com/brooswit-factory/schematic),
-not in this repo.
 
 ## Secrets & variables
 
-Everything below is optional. With none of them set, `ci.yml` and `release.yml` still
-build and attach the `.mrpack`, and every workflow stays green.
+Everything below is optional. With none of them set, `ci.yml` still builds and uploads
+the `.mrpack` as a workflow artifact, `release.yml` still builds and attaches it to the
+GitHub Release, and any workflow step that needs a secret **skips cleanly** (the run
+still finishes green) when it isn't configured.
 
-| Name | Kind | Required for | Purpose |
+| Name | Kind | Used by | Purpose |
 |---|---|---|---|
 | `MODRINTH_TOKEN` | secret | `release.yml` | Auth token for publishing to Modrinth (needs the **write-version** scope) |
 | `MODRINTH_PROJECT_ID` | variable | `release.yml` | Identifies which Modrinth project to publish to |
@@ -149,6 +207,6 @@ build and attach the `.mrpack`, and every workflow stays green.
 | `FTP_PASSWORD` | secret | `server-update.yml` | FTP password |
 | `FTP_REMOTE_DIR` | variable | `server-update.yml` | Remote directory to upload the pack to (default `/`) |
 | `RCON_HOST` | secret | `server-update.yml` | RCON server hostname for the announce/restart |
-| `RCON_PORT` | variable | `server-update.yml` | RCON port (default `25575`) |
 | `RCON_PASSWORD` | secret | `server-update.yml` | RCON password |
+| `RCON_PORT` | variable | `server-update.yml` | RCON port (default `25575`) |
 | `RCON_RESTART_COMMAND` | variable | `server-update.yml` | Command sent after the announce (default `stop`; assumes your host auto-restarts) |
