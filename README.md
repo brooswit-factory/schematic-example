@@ -67,17 +67,16 @@ untouched too — the checkout only overlays paths present in `ORIG_HEAD`, it do
 delete extras — and can safely be left in place.
 
 For the `--theirs` line, "other conflicted files not customised here" means
-`Makefile`, `server/README.md`, and `server/start.sh` — the template's version of
-these is taken as-is, since only identity comments differ. `README.md` is the one
-exception: because it describes this repo's own pack rather than the template's
-generic guide, it's reconciled by hand instead of `--theirs` wholesale — the
-pack-specific text is kept and template improvements are folded in where they still
-apply, as was done for this very section. If `.github/workflows/tag-v1.yml` had
-previously been deleted here, it would show as a delete/modify conflict instead of a
-clean merge; per [Template-only workflow](#template-only-workflow) below, deleting it
-isn't necessary in the first place, so the simplest fix is to keep the template's
-version (`git checkout --theirs -- .github/workflows/tag-v1.yml`) rather than
-re-deleting it.
+`Makefile`, `server/README.md`, and `server/start.sh` — take the template's version
+of these unless there are local edits worth preserving. `README.md` is the one file
+almost certainly customised here: it's reconciled by hand instead of `--theirs`
+wholesale — the pack-specific text is kept and template improvements are folded in
+where they still apply, as was done for this very section. If
+`.github/workflows/tag-v1.yml` was previously deleted here and the template has since
+changed it, you'll see it as a delete/modify conflict instead of a clean merge; per
+[Template-only files](#template-only-files) below, deleting it isn't necessary in the
+first place, so the simplest fix is to keep the template's version
+(`git checkout --theirs -- .github/workflows/tag-v1.yml`) rather than re-deleting it.
 
 ### The pinned workflow stubs
 
@@ -86,21 +85,40 @@ trigger (`on:`) and any `permissions:` it needs, and calls the template's actual
 via `uses: brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1`. `v1`
 is a moving tag kept pointed at the template's `main`, so pinning these stubs to `@v1`
 picks up fixes to the reusable workflows automatically, with zero merge effort. The
-reusable workflows themselves live only in
-[brooswit-factory/schematic](https://github.com/brooswit-factory/schematic), not in
-this repo.
+reusable workflows live here too, as template-only copies under
+`.github/workflows/reusable-*.yml` — see [Template-only files](#template-only-files)
+below — but the stubs call them at their upstream location, pinned `@v1`, so these
+local copies never run.
 
 `v1` promises backwards-compatible inputs, secrets, and variable names; anything that
 would break a consumer's workflow ships as a `v2` instead. This repo tracks `@v1`;
 pinning a stub's `uses:` line to a specific tag or commit SHA instead would opt out of
 moving updates.
 
-## Template-only workflow
+## Template-only files
 
-`.github/workflows/tag-v1.yml` keeps the `v1` tag on **brooswit-factory/schematic**
-pointed at its own `main`. It is guarded by a `github.repository` check, so it is inert
-here — the job is skipped entirely, and it creates no tag in this repo. There's no need
-to delete it; a `git merge template/main` would just bring it back anyway.
+Four files under `.github/workflows` are template-only, and safe to leave in place:
+
+`tag-v1.yml` keeps the `v1` tag on **brooswit-factory/schematic** pointed at its own
+`main`. It is guarded by a `github.repository` check, so it is inert here — the job is
+skipped entirely, and it creates no tag in this repo.
+
+`reusable-ci.yml`, `reusable-release.yml`, and `reusable-server-update.yml` are
+`workflow_call`-only definitions — nothing invokes them by local path. This repo's
+stubs (`ci.yml`, `release.yml`, `server-update.yml`) call them **upstream**, at
+`brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1`, so these local
+copies never run.
+
+There's no need to delete any of the four — doing so gains nothing, since they don't
+run locally either way, and deleting one only creates work later: a
+`git merge template/main` does not restore a file you deleted (the deletion simply
+persists, merge or no merge) until the template itself changes that file, at which
+point the merge stops with a delete/modify conflict you have to resolve by hand.
+Leaving the four alone avoids that conflict entirely, on every future merge.
+
+`ci.yml`, `release.yml`, and `server-update.yml` are the three stubs a consumer of
+this template needs to care about — the four template-only files above need no
+attention at all.
 
 ## Working on the pack
 
@@ -146,7 +164,8 @@ mods/*.pw.toml                      one file per mod, pinning a version and its 
 .github/workflows/ci.yml            validates the index and builds the .mrpack on every push
 .github/workflows/release.yml       cuts a release (see Releasing below)
 .github/workflows/server-update.yml keeps a game server in sync (see server/README.md)
-.github/workflows/tag-v1.yml        template-only (see Template-only workflow above)
+.github/workflows/tag-v1.yml        template-only (see Template-only files above)
+.github/workflows/reusable-*.yml    template-only (see Template-only files above)
 Makefile                            the build entry point, shared by humans and CI
 server/                             sample scripts for running/updating a Forge server for this pack
 ```
