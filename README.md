@@ -35,60 +35,65 @@ git remote add template https://github.com/brooswit-factory/schematic.git
 
 ### Pulling template changes
 
-This repo keeps evolving — Makefile fixes, `server/` tooling, README clarifications,
-improvements to the reusable workflows. Pull those into your own pack with:
+The template keeps evolving — Makefile fixes, `server/` tooling, README
+clarifications, improvements to the reusable workflows. This repo pulls those in
+with:
 
 ```sh
 git fetch template
 git merge template/main                                  # expect conflicts
-git checkout ORIG_HEAD -- pack.toml index.toml mods      # your pack content wins, conflicted or not
-git checkout --theirs -- <other conflicted files you have not customised>
+git checkout ORIG_HEAD -- pack.toml index.toml mods      # own pack content wins, conflicted or not
+git checkout --theirs -- <other conflicted files not customised here>
 make refresh
 git add -A
 git commit
 ```
 
-`ORIG_HEAD` is your branch tip as it was immediately before the merge — checking out
-`pack.toml`, `index.toml`, and `mods/` from it restores **your own content** there no
-matter what happened during the merge.
+`ORIG_HEAD` is the branch tip as it stood immediately before the merge — checking out
+`pack.toml`, `index.toml`, and `mods/` from it restores **this pack's own content**
+there no matter what happened during the merge.
 
 That last point matters: git only reports a conflict on a file **both sides changed**.
-If the template deletes or changes a file you never touched — most importantly a mod
-file in `mods/`, or `index.toml` — there's no conflict, and the merge silently applies
-the template's version, which for a deleted mod means it's just gone with nothing to
-resolve. That's the intended behaviour for tooling files (`Makefile`, `server/`,
-workflow stubs) that should track the template automatically, but it's exactly why the
-`git checkout ORIG_HEAD -- pack.toml index.toml mods` step above is unconditional
-rather than only for conflicted paths — it protects your pack content whether or not git
-flagged a conflict on it.
+If the template deletes or changes a file this repo never touched — most importantly a
+mod file in `mods/`, or `index.toml` — there's no conflict, and the merge silently
+applies the template's version, which for a deleted mod means it's just gone with
+nothing to resolve. That's the intended behaviour for tooling files (`Makefile`,
+`server/`, workflow stubs) that should track the template automatically, but it's
+exactly why the `git checkout ORIG_HEAD -- pack.toml index.toml mods` step above is
+unconditional rather than only for conflicted paths — it protects the pack content
+whether or not git flagged a conflict on it. A file the template *adds* under
+`mods/` (its own placeholder for an empty pack, for instance) survives this checkout
+untouched too — the checkout only overlays paths present in `ORIG_HEAD`, it doesn't
+delete extras — and can safely be left in place.
 
-For the `--theirs` line, "other conflicted files you have not customised" typically
-means `Makefile`, `server/README.md`, and `server/start.sh` — take the template's
-version of these unless you've made local edits worth preserving. `README.md` is the
-one exception worth calling out: if, like this repo, yours describes your own pack
-rather than just the template's generic guide, reconcile it by hand instead of taking
-`--theirs` wholesale — keep your pack-specific text and fold in template improvements
-where they still apply. If you previously deleted `.github/workflows/tag-v1.yml`
-locally, you'll see it as a delete/modify conflict instead of a clean merge; per
-[Template-only workflow](#template-only-workflow) below, you don't need to delete it in
-the first place, so the simplest fix is to keep the template's version
-(`git checkout --theirs -- .github/workflows/tag-v1.yml`) rather than re-deleting it.
+For the `--theirs` line, "other conflicted files not customised here" means
+`Makefile`, `server/README.md`, and `server/start.sh` — the template's version of
+these is taken as-is, since only identity comments differ. `README.md` is the one
+exception: because it describes this repo's own pack rather than the template's
+generic guide, it's reconciled by hand instead of `--theirs` wholesale — the
+pack-specific text is kept and template improvements are folded in where they still
+apply, as was done for this very section. If `.github/workflows/tag-v1.yml` had
+previously been deleted here, it would show as a delete/modify conflict instead of a
+clean merge; per [Template-only workflow](#template-only-workflow) below, deleting it
+isn't necessary in the first place, so the simplest fix is to keep the template's
+version (`git checkout --theirs -- .github/workflows/tag-v1.yml`) rather than
+re-deleting it.
 
 ### The pinned workflow stubs
 
 `ci.yml`, `release.yml`, and `server-update.yml` are thin stubs: each keeps only its
 trigger (`on:`) and any `permissions:` it needs, and calls the template's actual logic
 via `uses: brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1`. `v1`
-is a moving tag kept pointed at the template's `main`, so pinning a consumer's stub to
-`@v1` picks up fixes to the reusable workflows automatically, with zero merge effort.
-The reusable workflows themselves live only in
+is a moving tag kept pointed at the template's `main`, so pinning these stubs to `@v1`
+picks up fixes to the reusable workflows automatically, with zero merge effort. The
+reusable workflows themselves live only in
 [brooswit-factory/schematic](https://github.com/brooswit-factory/schematic), not in
 this repo.
 
 `v1` promises backwards-compatible inputs, secrets, and variable names; anything that
-would break your workflow ships as a `v2` instead. If you'd rather not receive moving
-updates, pin a specific tag or commit SHA in place of `@v1` in your stub's `uses:`
-line.
+would break a consumer's workflow ships as a `v2` instead. This repo tracks `@v1`;
+pinning a stub's `uses:` line to a specific tag or commit SHA instead would opt out of
+moving updates.
 
 ## Template-only workflow
 
