@@ -1,6 +1,6 @@
 # schematic-example
 
-The living example consumer of [brooswit-factory/schematic](https://github.com/brooswit-factory/schematic),
+The living example consumer of [brooswit-minecraft/schematic](https://github.com/brooswit-minecraft/schematic),
 the packwiz-based Minecraft **1.20.1 / Forge** modpack template. It holds a real,
 buildable pack — not a fork of the template's docs — so it doubles as the reference
 for what a consumer actually has to change.
@@ -11,18 +11,18 @@ button, precisely so it shares git history with the template:
 ```sh
 gh repo create brooswit-factory/schematic-example --public \
   --description "Example consumer of the schematic modpack template"
-git clone https://github.com/brooswit-factory/schematic.git schematic-example
+git clone https://github.com/brooswit-minecraft/schematic.git schematic-example
 cd schematic-example
 git remote rename origin template
 git remote add origin https://github.com/brooswit-factory/schematic-example.git
 git push -u origin main
 ```
 
-`template` is the remote pointing at `brooswit-factory/schematic`. A fresh clone of
+`template` is the remote pointing at `brooswit-minecraft/schematic`. A fresh clone of
 *this* repo won't have it — add it back first:
 
 ```sh
-git remote add template https://github.com/brooswit-factory/schematic.git
+git remote add template https://github.com/brooswit-minecraft/schematic.git
 ```
 
 | | |
@@ -82,7 +82,7 @@ first place, so the simplest fix is to keep the template's version
 
 `ci.yml`, `release.yml`, and `server-update.yml` are thin stubs: each keeps only its
 trigger (`on:`) and any `permissions:` it needs, and calls the template's actual logic
-via `uses: brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1`. `v1`
+via `uses: brooswit-minecraft/schematic/.github/workflows/reusable-<name>.yml@v1`. `v1`
 is a moving tag kept pointed at the template's `main`, so pinning these stubs to `@v1`
 picks up fixes to the reusable workflows automatically, with zero merge effort. The
 reusable workflows live here too, as template-only copies under
@@ -99,14 +99,14 @@ moving updates.
 
 Four files under `.github/workflows` are template-only, and safe to leave in place:
 
-`tag-v1.yml` keeps the `v1` tag on **brooswit-factory/schematic** pointed at its own
+`tag-v1.yml` keeps the `v1` tag on **brooswit-minecraft/schematic** pointed at its own
 `main`. It is guarded by a `github.repository` check, so it is inert here — the job is
 skipped entirely, and it creates no tag in this repo.
 
 `reusable-ci.yml`, `reusable-release.yml`, and `reusable-server-update.yml` are
 `workflow_call`-only definitions — nothing invokes them by local path. This repo's
 stubs (`ci.yml`, `release.yml`, `server-update.yml`) call them **upstream**, at
-`brooswit-factory/schematic/.github/workflows/reusable-<name>.yml@v1`, so these local
+`brooswit-minecraft/schematic/.github/workflows/reusable-<name>.yml@v1`, so these local
 copies never run.
 
 There's no need to delete any of the four — doing so gains nothing, since they don't
