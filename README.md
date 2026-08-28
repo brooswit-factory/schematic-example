@@ -35,7 +35,7 @@ git remote add template https://github.com/brooswit-minecraft/schematic.git
 
 ### Pulling template changes
 
-The template keeps evolving — Makefile fixes, `server/` tooling, README
+The template keeps evolving — Makefile fixes, README
 clarifications, improvements to the reusable workflows. This repo pulls those in
 with:
 
@@ -58,7 +58,7 @@ If the template deletes or changes a file this repo never touched — most impor
 mod file in `mods/`, or `index.toml` — there's no conflict, and the merge silently
 applies the template's version, which for a deleted mod means it's just gone with
 nothing to resolve. That's the intended behaviour for tooling files (`Makefile`,
-`server/`, workflow stubs) that should track the template automatically, but it's
+workflow stubs) that should track the template automatically, but it's
 exactly why the `git checkout ORIG_HEAD -- pack.toml index.toml mods` step above is
 unconditional rather than only for conflicted paths — it protects the pack content
 whether or not git flagged a conflict on it. A file the template *adds* under
@@ -66,9 +66,9 @@ whether or not git flagged a conflict on it. A file the template *adds* under
 untouched too — the checkout only overlays paths present in `ORIG_HEAD`, it doesn't
 delete extras — and can safely be left in place.
 
-For the `--theirs` line, "other conflicted files not customised here" means
-`Makefile`, `server/README.md`, and `server/start.sh` — take the template's version
-of these unless there are local edits worth preserving. `README.md` is the one file
+For the `--theirs` line, "other conflicted files not customised here" typically
+means `Makefile` — take the template's version of it unless there are local edits
+worth preserving. `README.md` is the one file
 almost certainly customised here: it's reconciled by hand instead of `--theirs`
 wholesale — the pack-specific text is kept and template improvements are folded in
 where they still apply, as was done for this very section. If
@@ -163,11 +163,10 @@ mods/*.pw.toml                      one file per mod, pinning a version and its 
 .packwizignore                      repo files (docs, CI, Makefile) kept out of the pack
 .github/workflows/ci.yml            validates the index and builds the .mrpack on every push
 .github/workflows/release.yml       cuts a release (see Releasing below)
-.github/workflows/server-update.yml keeps a game server in sync (see server/README.md)
+.github/workflows/server-update.yml keeps a Modrinth-hosted server in sync (see Deploying to a Modrinth Server below)
 .github/workflows/tag-v1.yml        template-only (see Template-only files above)
 .github/workflows/reusable-*.yml    template-only (see Template-only files above)
 Makefile                            the build entry point, shared by humans and CI
-server/                             sample scripts for running/updating a Forge server for this pack
 ```
 
 No jars are committed — `.pw.toml` files reference downloads by URL and hash, and
@@ -203,17 +202,20 @@ This builds and uploads the `.mrpack` as a workflow artifact but skips the
 Release-asset step (there is no Release object to attach to) and the Modrinth publish
 step, the same as any run without Modrinth configured.
 
-## Updating a server
+## Deploying to a Modrinth Server
 
 `.github/workflows/server-update.yml` runs on a published GitHub release, or on demand
 via `workflow_dispatch` (with an optional `version` input; it otherwise falls back to
-the `version` field in `pack.toml`). It uploads the packwiz pack to your game server
-over FTP, then announces the update and restarts the server over RCON — see
-[`server/README.md`](server/README.md) for how to set up the server side of this.
+the `version` field in `pack.toml`). A [Modrinth-hosted server](https://modrinth.com/servers)
+follows the published project automatically — this workflow re-points it at the
+newly-published version and restarts it. See the template's
+[Deploying to a Modrinth Server](https://github.com/brooswit-minecraft/schematic#deploying-to-a-modrinth-server)
+section for the one-time setup.
 
-Both halves are independent and **skip cleanly** (the workflow still finishes green)
-when their secrets aren't configured, so this works out of the box on a fresh clone —
-you opt in by adding the secrets/variables below whenever you're ready.
+This **skips cleanly** (the workflow still finishes green) when
+`MODRINTH_SERVER_ID` / `MODRINTH_TOKEN` aren't configured, so this works out of the
+box on a fresh clone — you opt in by adding the variable/secret below whenever you're
+ready.
 
 ## Secrets & variables
 
@@ -224,13 +226,6 @@ still finishes green) when it isn't configured.
 
 | Name | Kind | Used by | Purpose |
 |---|---|---|---|
-| `MODRINTH_TOKEN` | secret | `release.yml` | Auth token for publishing to Modrinth (needs the **write-version** scope) |
-| `MODRINTH_PROJECT_ID` | variable | `release.yml` | Identifies which Modrinth project to publish to |
-| `FTP_HOST` | secret | `server-update.yml` | FTP server hostname for the pack upload |
-| `FTP_USER` | secret | `server-update.yml` | FTP username |
-| `FTP_PASSWORD` | secret | `server-update.yml` | FTP password |
-| `FTP_REMOTE_DIR` | variable | `server-update.yml` | Remote directory to upload the pack to (default `/`) |
-| `RCON_HOST` | secret | `server-update.yml` | RCON server hostname for the announce/restart |
-| `RCON_PASSWORD` | secret | `server-update.yml` | RCON password |
-| `RCON_PORT` | variable | `server-update.yml` | RCON port (default `25575`) |
-| `RCON_RESTART_COMMAND` | variable | `server-update.yml` | Command sent after the announce (default `stop`; assumes your host auto-restarts) |
+| `MODRINTH_TOKEN` | secret | `release.yml`, `server-update.yml` | Auth token for publishing to Modrinth and updating a Modrinth-hosted server |
+| `MODRINTH_PROJECT_ID` | variable | `release.yml`, `server-update.yml` | Identifies which Modrinth project to publish to / follow |
+| `MODRINTH_SERVER_ID` | variable | `server-update.yml` | The Modrinth-hosted server to keep in sync |
