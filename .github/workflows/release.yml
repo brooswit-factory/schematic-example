@@ -19,4 +19,5 @@ jobs:
     uses: brooswit-minecraft/schematic/.github/workflows/reusable-release.yml@692bd466e396d62900695c51ab47ff12de3f56e5
     with:
       version: ${{ inputs.version }}
+      notes-file: schem-35-e5-notes.md
     secrets: inherit
