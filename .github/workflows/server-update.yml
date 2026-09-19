@@ -43,7 +43,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'release')
-    uses: brooswit-minecraft/schematic/.github/workflows/reusable-server-update.yml@v1
+    uses: brooswit-minecraft/schematic/.github/workflows/reusable-server-update.yml@SCHEM-32
     with:
       version: ${{ inputs.version }}
     secrets: inherit
