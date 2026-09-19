@@ -1,0 +1,66 @@
+name: SCHEM-32 harness (temporary — direct-call evidence, removed when done)
+
+# Simulates the SCHEM-29/SICKOS-70 shape: an automated caller whose OWN
+# triggering event is repository_dispatch (none of release/workflow_run/
+# workflow_dispatch) bumps pack.toml, releases that exact commit via
+# reusable-release.yml@v1 (publish: true + ref, already shipped in SCHEM-28),
+# then calls reusable-server-update.yml directly — three ways, for
+# comparison in one run:
+#   - before:      pinned @v1 (today's shipped behaviour, no ref)
+#   - after-noref: pinned @SCHEM-32, ref omitted (fix present but caller
+#                  still doesn't pass ref — should still show the stale
+#                  version fallback, but WITH the wait now enabled)
+#   - after-ref:   pinned @SCHEM-32, ref passed (fully fixed)
+
+on:
+  repository_dispatch:
+    types: [schem32-test]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.out.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump pack.toml
+        env:
+          NEW_VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          sed -i "s|^version = \".*\"|version = \"${NEW_VERSION}\"|" pack.toml
+          git config user.name "schem32-harness"
+          git config user.email "schem32-harness@users.noreply.github.com"
+          git commit -am "SCHEM-32 harness bump to ${NEW_VERSION}"
+          git push
+      - id: out
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: bump
+    permissions:
+      contents: write
+    uses: brooswit-minecraft/schematic/.github/workflows/reusable-release.yml@v1
+    with:
+      publish: true
+      ref: ${{ needs.bump.outputs.sha }}
+    secrets: inherit
+
+  server-update-before:
+    needs: [bump, release]
+    uses: brooswit-minecraft/schematic/.github/workflows/reusable-server-update.yml@v1
+    secrets: inherit
+
+  server-update-after-noref:
+    needs: [bump, release]
+    uses: brooswit-minecraft/schematic/.github/workflows/reusable-server-update.yml@SCHEM-32
+    secrets: inherit
+
+  server-update-after-ref:
+    needs: [bump, release]
+    uses: brooswit-minecraft/schematic/.github/workflows/reusable-server-update.yml@SCHEM-32
+    with:
+      ref: ${{ needs.bump.outputs.sha }}
+    secrets: inherit
